@@ -96,6 +96,16 @@ The README provides detailed instructions for the user to:
 4. Run the compiled binary.
 5. Use the interactive prompt to reload the library and apply changes without restarting the program.
 
+> [!IMPORTANT]
+> 
+> In order for hot reloading to work,
+> 
+> Ensure that all libraries used in the project 
+> have a **shared object (.so)** file and ARE NOT 
+> *STATICALLY LINKED* to main.c 
+> 
+> Failing to adhering to the above will cause the framework to not behave as expected.
+
 ## Future 
 
 Not to sure where to do with this to be honest, I just wanted to build a framework that I feel like would be very useful for me, as a person who builds and maintains TUI based projects written in NCurses
