@@ -391,7 +391,7 @@ $project_name/
 ## Instructions
 1. Navigate to your project folder: \`cd $project_name\`
 2. Run \`./init.sh\` to initially compile the library and binary.
-3. Run `cd build/; export LD_LIBRARY_PATH=.:\$LD_LIBRARY_PATH`
+3. Run \`cd build/; export LD_LIBRARY_PATH=.:\$LD_LIBRARY_PATH\`
 4. Run your program: \`./$output_binary\`
 5. While the binary `$output_binary` is still running, press 'r' in the running program to reload the library and apply changes.
 
