@@ -4,6 +4,24 @@
 
 **easC** (Easy to configure C framework with dynamic library support) is designed to simplify the process of developing C applications that utilize hot-reloadable dynamic libraries. With easC, you can create modular applications that allow changes to libraries to be reflected in the running program without needing to restart it. This is particularly useful in development environments where rapid iteration is essential.
 
+## Usage
+
+Simply clone this repo and run the build script 
+
+```sh 
+git clone https://github.com/nots1dd/easc.git 
+cd easC/
+./build.sh
+```
+
+> [!NOTE]
+> 
+> For a more detailed look at how 
+> the framework looks like, 
+> 
+> Check out [testlib](https;//github.com/nots1dd/easc/blob/main/testlib/README,md)
+> 
+
 ## Key Concepts
 
 ### Hot Reloading
@@ -77,6 +95,12 @@ The README provides detailed instructions for the user to:
 3. Set the `LD_LIBRARY_PATH` to include the build directory for dynamic linking.
 4. Run the compiled binary.
 5. Use the interactive prompt to reload the library and apply changes without restarting the program.
+
+## Future 
+
+Not to sure where to do with this to be honest, I just wanted to build a framework that I feel like would be very useful for me, as a person who builds and maintains TUI based projects written in NCurses
+
+Expected changes for the immediate future will be out soon.
 
 ## Conclusion
 
