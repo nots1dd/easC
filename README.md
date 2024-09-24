@@ -24,6 +24,8 @@ cd easC/
 
 ## Key Concepts
 
+For an in-depth on the **WHAT**, **HOW**, **WHY** regarding *easC*, check out [easC](https://github.com/nots1dd/easc/blob/main/EASC.md)
+
 ### Hot Reloading
 
 Hot reloading is a technique that allows a program to load or reload parts of its code at runtime. This is accomplished through dynamic linking and loading of shared libraries (commonly `.so` files on Unix-like systems). Instead of stopping the application and recompiling the entire codebase, hot reloading enables developers to make changes in real-time, which can significantly enhance productivity and streamline the debugging process.
@@ -95,6 +97,23 @@ The README provides detailed instructions for the user to:
 3. Set the `LD_LIBRARY_PATH` to include the build directory for dynamic linking.
 4. Run the compiled binary.
 5. Use the interactive prompt to reload the library and apply changes without restarting the program.
+
+Below code snipper would be the ideal streamlined flow of using easC for your project: 
+
+```sh 
+cd $project_name/
+./init.sh                                 # To initialize easC
+
+cd build/ 
+export LD_LIBRARY_PATH=.:$LD_LIBRARY_PATH # Adding our shared object library to LD_LIBRARY_PATH for GNU linker to link to binary
+./$output_binary
+
+# To hot reload 
+# <MAKE CHANGES TO $library_name.c>
+
+# In the currently running $output_binary: 
+# Type 'r' while in the event loop!
+```
 
 > [!IMPORTANT]
 > 
