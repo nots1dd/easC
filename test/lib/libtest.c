@@ -17,5 +17,5 @@ void easC_print() {
 }
 
 void easC_update() {
-    printf("ummm ok\n");
+    printf("Updated function call. Hot reloading works!\n");
 }

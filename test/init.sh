@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CONFIG_FILE="/home/s1dd/misc/buildtest/testlib/.config/easC/config.json"
+CONFIG_FILE="/home/s1dd/misc/buildtest/test/.config/easC/config.json"
 
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "\033[1;31mConfig file not found.\033[0m"
