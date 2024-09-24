@@ -302,6 +302,25 @@ cat <<EOL > "$project_name/README.md"
 This is a basic C framework built with dynamic library support using \`dlopen\`, \`dlsym\`, and \`dlclose\`. 
 It supports hot-reloading, allowing library code to be updated without restarting the program.
 
+## File structure 
+
+\\\
+$project_name/
+├── .config/easC/
+│    └── config.json
+├── src/
+│   └── main.c
+├── lib/
+│   ├── $library_name.c
+│   ├── $library_name.h
+│   └── recompile.sh
+├── build/
+├── init.sh
+├── Makefile     [OPTIONAL]
+├──.clang-format [OPTIONAL]
+└── README.md
+\\\
+
 ## Features
 - Dynamic function loading and reloading.
 - Easy recompile script for library changes.
@@ -327,6 +346,29 @@ To reload the library at runtime, press 'r'. Press 'q' to quit.
 - clang-format (optional)
 
 EOL
+
+echo -e "${GREEN}Your easC project is ready with the following structure:${NC}"
+echo -e "${YELLOW}$project_name${NC}/"
+echo "├── .config/easC/"
+echo "│    └── config.json"
+echo "├── src/"
+echo "│   └── main.c"
+echo "├── lib/"
+echo "│   ├── $library_name.c"
+echo "│   ├── $library_name.h"
+echo "│   └── recompile.sh"
+echo "├── build/"
+echo "├── init.sh"
+echo "├── Makefile (optional)"
+echo "├── .clang-format (optional)"
+echo "└── README.md"
+
+echo -e "${GREEN}To get started:${NC}"
+echo -e "1. Navigate to your project folder: ${YELLOW}cd $project_name${NC}"
+echo -e "2. Run ${YELLOW}./init.sh${NC} to initially compile the library and binary."
+echo -e "3. Run: cd build/; export LD_LIBRARY_PATH=.:\$LD_LIBRARY_PATH"
+echo -e "4. Run your program: ${YELLOW}./$output_binary${NC}"
+echo -e "5. While the binary $output_binary is running, press 'r' in the running program to reload the library and apply changes."
 
 # Final message
 echo -e "${GREEN}Project $project_name has been initialized successfully!${NC}"
