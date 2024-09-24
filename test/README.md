@@ -6,7 +6,9 @@ It supports hot-reloading, allowing library code to be updated without restartin
 
 ## File structure 
 
-\test/
+
+```bash
+test/
 ├── .config/easC/
 │    └── config.json
 ├── src/
@@ -17,10 +19,11 @@ It supports hot-reloading, allowing library code to be updated without restartin
 │   └── recompile.sh
 ├── build/
 ├── init.sh
-├── Makefile     [OPTIONAL]
-├──.clang-format [OPTIONAL]
+├── Makefile      [OPTIONAL]
+├── .clang-format [OPTIONAL]
 └── README.md
-\
+```
+
 ## Features
 - Dynamic function loading and reloading.
 - Easy recompile script for library changes.

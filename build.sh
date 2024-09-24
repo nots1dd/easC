@@ -304,7 +304,8 @@ It supports hot-reloading, allowing library code to be updated without restartin
 
 ## File structure 
 
-\\\
+
+\`\`\`bash
 $project_name/
 ├── .config/easC/
 │    └── config.json
@@ -316,10 +317,10 @@ $project_name/
 │   └── recompile.sh
 ├── build/
 ├── init.sh
-├── Makefile     [OPTIONAL]
-├──.clang-format [OPTIONAL]
+├── Makefile      [OPTIONAL]
+├── .clang-format [OPTIONAL]
 └── README.md
-\\\
+\`\`\`
 
 ## Features
 - Dynamic function loading and reloading.
