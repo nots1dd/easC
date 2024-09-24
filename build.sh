@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Colors for cool terminal output
+# Colors for terminal output
 YELLOW='\033[1;33m'
 RED='\033[1;31m'
 GREEN='\033[1;32m'
@@ -16,9 +16,10 @@ validate_input() {
     return 0
 }
 
-echo -e "${BLUE}Welcome to easC (Easy to configure C framework with dynamic lib support!) initializer!${NC}"
+# Welcome message
+echo -e "${BLUE}Welcome to easC (Easy-to-configure C framework with dynamic lib support!) initializer!${NC}"
 
-# Prompting for project name
+# Prompt for project name
 while true; do
     echo -e "${YELLOW}Enter your project name:${NC}"
     read project_name
@@ -27,7 +28,7 @@ while true; do
     fi
 done
 
-# Prompting for output binary name
+# Prompt for output binary name
 while true; do
     echo -e "${YELLOW}Enter the name of your output binary (default: ${GREEN}main${NC}):${NC}"
     read output_binary
@@ -37,7 +38,7 @@ while true; do
     fi
 done
 
-# Prompting for the library name
+# Prompt for the library name
 while true; do
     echo -e "${YELLOW}Enter the name of the hot-reloadable library (default: ${GREEN}libeasc${NC}):${NC}"
     read library_name
@@ -47,6 +48,32 @@ while true; do
     fi
 done
 
+# Function to validate yes/no input
+validate_yes_no() {
+    if [[ "$1" != "y" && "$1" != "n" ]]; then
+        echo -e "${RED}Error: Please enter 'y' for yes or 'n' for no.${NC}"
+        return 1
+    fi
+    return 0
+}
+
+# Ask user if they want to add a .clang-format configuration
+while true; do
+    echo -e "${YELLOW}Would you like to add a .clang-format configuration? (y/n)${NC}"
+    read add_clang_format
+    if validate_yes_no "$add_clang_format"; then
+        break
+    fi
+done
+
+# Ask user if they want to generate a Makefile
+while true; do
+    echo -e "${YELLOW}Would you like to generate a Makefile? (y/n)${NC}"
+    read generate_makefile
+    if validate_yes_no "$generate_makefile"; then
+        break
+    fi
+done
 
 # Define project directory
 project_dir="$(pwd)/$project_name/.config/easC"
@@ -77,35 +104,28 @@ echo -e "${BLUE}Setting up your project structure...${NC}"
 mkdir -p "$project_name/src"
 mkdir -p "$project_name/lib"
 mkdir -p "$project_name/build"
+mkdir -p "$project_name/include"
 
-# libeasc.h (header file)
+# Create C library header and source files
 cat <<EOL > "$project_name/lib/$library_name.h"
-#ifndef $library_name
-#define $library_name
+#ifndef ${library_name^^}_H
+#define ${library_name^^}_H
 
 #include <stdio.h>
 
 /****************************************
  * $library_name.h
- *
- * This header file contains function declarations and typedefs
- * for function pointers used in the dynamic library. These functions
- * are declared here and defined in the dynamic library ($library_name.c).
- *
- * The typedefs allow us to reference the functions dynamically when
- * loading them from the shared object (.so) file in the main program.
+ * 
+ * This header contains function declarations for 
+ * dynamic library functions used by the main program.
  ****************************************/
 
-/* Typedef for easC_print function pointer */
+/* Typedef for dynamic function pointers */
 typedef void (*easC_print_t)(void);
-
-/* Typedef for easC_init function pointer */
 typedef void (*easC_init_t)(void);
-
-/* Typedef for easC_update function pointer */
 typedef void (*easC_update_t)(void);
 
-#endif
+#endif // ${library_name^^}_H
 EOL
 
 cat <<EOL > "$project_name/lib/$library_name.c"
@@ -113,35 +133,26 @@ cat <<EOL > "$project_name/lib/$library_name.c"
 
 /****************************************
  * $library_name.c
- *
- * This is the implementation of the dynamic library. The functions
- * defined here will be dynamically loaded at runtime by the main
- * program (main.c). These functions can be updated and reloaded 
- * during runtime, enabling "hot reloading."
- *
- * Functions:
- * - easC_init: Initializes the library and prints a message.
- * - easC_print: Prints a message for testing purposes.
- * - easC_update: Updates logic and demonstrates hot reloading.
+ * 
+ * This file contains the implementation of the dynamic 
+ * library functions. They will be hot-reloaded during 
+ * runtime by the main program.
  ****************************************/
 
-/* Initializes the library */
 void easC_init() {
-    printf("Library initialized successfully.\n");
+    printf("Library initialized successfully.\\n");
 }
 
-/* Prints a simple message for testing */
 void easC_print() {
-    printf("This is the test_print function from the dynamically loaded library.\n");
+    printf("This is the test_print function from the dynamically loaded library.\\n");
 }
 
-/* Updates the logic and prints a message */
 void easC_update() {
-    printf("Updated function call. Hot reloading works!\nHello world??\n");
+    printf("Updated function call. Hot reloading works!\\n");
 }
 EOL
 
-# main.c (main program)
+# Create the main C program
 cat <<EOL > "$project_name/src/main.c"
 #include <stdio.h>
 #include <dlfcn.h>
@@ -149,276 +160,173 @@ cat <<EOL > "$project_name/src/main.c"
 #include <stdlib.h>
 #include "../lib/$library_name.h"
 
-/****************************************
- * main.c
- *
- * This is the main program. It dynamically loads the library ($library_name.so)
- * at runtime using `dlopen`, retrieves the function symbols using `dlsym`,
- * and can reload the library during runtime, enabling "hot reloading".
- *
- * Key functions:
- * - reload_func: Loads/reloads the dynamic library and retrieves function symbols.
- * - main: Runs an event loop that listens for user input to either reload
- *   the library or execute the functions dynamically loaded from the library.
- ****************************************/
+#define LIBRARY_PATH "../lib/$library_name.so"
+#define RELOAD_SCRIPT "../lib/recompile.sh"
 
-#define LIBEASC "../lib/$library_name.so"
-#define RELOAD_SCRIPT "../lib/recompile.sh"  // Script to recompile the library and program
-
-#define EASC_SYM_PRINT "easC_print"
-#define EASC_SYM_INIT  "easC_init"
-#define EASC_SYM_UPD   "easC_update"
-
-/****************************************
- * Global Variables:
- * - lib_name: The name of the shared library file.
- * - libplug: Handle for the dynamically loaded library.
- * - Function pointers: test_print, test_init, test_update (retrieved using dlsym).
- ****************************************/
-const char *lib_name = LIBEASC;
-void *libplug = NULL;
-
+/* Global function pointers */
 easC_print_t easC_print = NULL;
 easC_init_t easC_init = NULL;
 easC_update_t easC_update = NULL;
 
-/****************************************
- * reload_func:
- * Dynamically loads (or reloads) the shared library and retrieves the symbols
- * for the functions to be called dynamically. Uses `dlopen` to open the library
- * and `dlsym` to locate function symbols. If any errors occur, the function
- * prints an error message and returns false.
- ****************************************/
-bool reload_func() {
-    /* Close the previously opened library if it exists */
-    if (libplug != NULL) {
-        dlclose(libplug);
+/* Function to load/reload dynamic library */
+bool reload_library(void **lib_handle) {
+    if (*lib_handle != NULL) {
+        dlclose(*lib_handle);
     }
-
-    /* Load the shared library ($library_name.so) */
-    libplug = dlopen(lib_name, RTLD_NOW);
-    if (libplug == NULL) {
-        fprintf(stderr, "Couldn't load %s: %s\n", lib_name, dlerror());
+    *lib_handle = dlopen(LIBRARY_PATH, RTLD_NOW);
+    if (!*lib_handle) {
+        fprintf(stderr, "Error loading library: %s\\n", dlerror());
         return false;
     }
 
-    /* Retrieve the test_print function symbol */
-    easC_print = dlsym(libplug, EASC_SYM_PRINT);
-    if (easC_print == NULL) {
-        fprintf(stderr, "Couldn't find symbol test_print: %s\n", dlerror());
+    easC_print = dlsym(*lib_handle, "easC_print");
+    easC_init = dlsym(*lib_handle, "easC_init");
+    easC_update = dlsym(*lib_handle, "easC_update");
+
+    if (!easC_print || !easC_init || !easC_update) {
+        fprintf(stderr, "Error loading symbols: %s\\n", dlerror());
         return false;
     }
-
-    /* Retrieve the test_init function symbol */
-    easC_init = dlsym(libplug, EASC_SYM_INIT);
-    if (easC_init == NULL) {
-        fprintf(stderr, "Couldn't find symbol test_init: %s\n", dlerror());
-        return false;
-    }
-
-    /* Retrieve the test_update function symbol */
-    easC_update = dlsym(libplug, EASC_SYM_UPD);
-    if (easC_update == NULL) {
-        fprintf(stderr, "Couldn't find symbol test_update: %s\n", dlerror());
-        return false;
-    }
-
-    /* Successfully loaded the library and retrieved all symbols */
     return true;
 }
 
-/****************************************
- * main:
- * The main function runs an event loop that waits for user input.
- * If the user presses 'r', the reload script (reload.sh) is executed
- * to recompile the library, and the library is reloaded to apply changes.
- * Press 'q' to quit the program.
- ****************************************/
 int main() {
-    /* Load the library and retrieve the function symbols initially */
-    if (!reload_func()) {
-        return 1;
-    }
+    void *lib_handle = NULL;
 
-    /* Initialize the library (call test_init) */
+    if (!reload_library(&lib_handle)) return 1;
+
     easC_init();
 
-    char s;  // Variable to store user input
+    char input;
+    while (true) {
+        printf("Press 'r' to reload library, 'q' to quit: ");
+        scanf(" %c", &input);
 
-    /* Event loop: Continue until 'q' is pressed */
-    while (s != 'q') {
-        printf("Press 'r' to reload or 'q' to quit: ");
-        
-        /* Wait for user input */
-        scanf(" %c", &s);  // Add space to ignore any previous newline
-
-        /* If 'r' is pressed, reload the library */
-        if (s == 'r') {
-            system(RELOAD_SCRIPT);  // Execute the reload script
-            if (!reload_func()) return 1;  // Reload the library and symbols
+        if (input == 'r') {
+            system(RELOAD_SCRIPT);
+            if (!reload_library(&lib_handle)) return 1;
+        } else if (input == 'q') {
+            break;
         }
 
-        /* Call the test_update function (if 'q' is not pressed) */
-        if (s != 'q') {
-            easC_update();
-        }
+        easC_update();
     }
 
-    /* Close the library before exiting */
-    dlclose(libplug);
+    dlclose(lib_handle);
     return 0;
 }
 EOL
 
-# reload.sh (script to recompile the library and main program)
+# Create recompile.sh script
+cat <<EOL > "$project_name/lib/recompile.sh"
+#!/bin/bash
+# Recompile the dynamic library
+
+gcc -fPIC -shared ../lib/$library_name.c -o ../lib/$library_name.so
+if [ \$? -eq 0 ]; then
+    echo -e "${GREEN}Library recompiled successfully.${NC}"
+else
+    echo -e "${RED}Error recompiling the library.${NC}"
+    exit 1
+fi
+EOL
+chmod +x "$project_name/lib/recompile.sh"
+
+# Optional: Generate a Makefile
+if [ "$generate_makefile" == "y" ]; then
+    echo -e "${BLUE}Generating Makefile...${NC}"
+    cat <<EOL > "$project_name/Makefile"
+CC=gcc
+CFLAGS=-Wall -g
+LDFLAGS=-ldl
+
+# Default target
+all: lib/$library_name.so build/$output_binary
+
+lib/$library_name.so: lib/$library_name.c
+	\$(CC) -fPIC -shared lib/$library_name.c -o lib/$library_name.so
+
+build/$output_binary: src/main.c lib/$library_name.so
+	\$(CC) src/main.c \$(LDFLAGS) -o build/$output_binary
+
+clean:
+	rm -rf build/* lib/*.so
+
+.PHONY: clean
+EOL
+    echo -e "${GREEN}Makefile generated.${NC}"
+fi
+
+# Optional: Add a .clang-format file
+if [ "$add_clang_format" == "y" ]; then
+    echo -e "${BLUE}Adding .clang-format...${NC}"
+    cat <<EOL > "$project_name/.clang-format"
+BasedOnStyle: Google
+IndentWidth: 4
+ColumnLimit: 80
+SortIncludes: true
+EOL
+    echo -e "${GREEN}.clang-format added.${NC}"
+fi
+
+# Create init.sh to compile the project
 cat <<EOL > "$project_name/init.sh"
 #!/bin/bash
 
-# Configuration file location
-CONFIG_FILE="$project_dir/config.json"
+CONFIG_FILE="$config_file"
 
-# Check if the configuration file exists
 if [ ! -f "\$CONFIG_FILE" ]; then
-    echo "Config file not found at \$CONFIG_FILE"
+    echo "${RED}Config file not found.${NC}"
     exit 1
 fi
 
-# Read values from config.json using jq
-library_name=\$(jq -r '.library_name' "\$CONFIG_FILE")
 output_binary=\$(jq -r '.output_binary' "\$CONFIG_FILE")
+library_name=\$(jq -r '.library_name' "\$CONFIG_FILE")
 
-# Validate that the values were successfully read
-if [ -z "$library_name" ] || [ -z "$output_binary" ]; then
-    echo "Error reading library_name or output_binary from config.json"
-    exit 1
+# Compile library and main program
+gcc -fPIC -shared lib/\$library_name.c -o lib/\$library_name.so
+gcc src/main.c -ldl -o build/\$output_binary
+if [ \$? -eq 0 ]; then
+    echo -e "${GREEN}Project compiled successfully.${NC}"
+else
+    echo -e "${RED}Compilation failed.${NC}"
 fi
-
-# Get the absolute path of the script directory
-DIR=\$(dirname "\$(realpath "$0")")
-
-# Compile the dynamic library using absolute paths
-gcc -fPIC -shared "\$DIR/lib/$library_name.c" -o "\$DIR/lib/$library_name.so"
-if [ \$? -ne 0 ]; then
-    echo "Failed to compile the dynamic library."
-    exit 1
-fi
-
-# Compile the main program using absolute paths
-gcc "\$DIR/src/main.c" -ldl -o "\$DIR/build/$output_binary"
-if [ \$? -ne 0 ]; then
-    echo "Failed to compile the main program."
-    exit 1
-fi
-
-echo "Library and program recompiled successfully."
 EOL
-
 chmod +x "$project_name/init.sh"
 
-cat <<EOL > "$project_name/lib/recompile.sh"
-#!/bin/bash
-
-# Colors for cool terminal output
-YELLOW='\033[1;33m'
-GREEN='\033[1;32m'
-RED='\033[1;31m'
-BLUE='\033[1;34m'
-NC='\033[0m' # No Color
-
-# Configuration file location
-CONFIG_FILE="$project_dir/config.json"
-
-# Check if the configuration file exists
-if [ ! -f "\$CONFIG_FILE" ]; then
-    echo "Config file not found at \$CONFIG_FILE"
-    exit 1
-fi
-
-# Read values from config.json using jq
-library_name=\$(jq -r '.library_name' "\$CONFIG_FILE")
-output_binary=\$(jq -r '.output_binary' "\$CONFIG_FILE")
-
-# Validate that the values were successfully read
-if [ -z "$library_name" ] || [ -z "$output_binary" ]; then
-    echo "\${RED}Error reading library_name or output_binary from config.json\${RED}"
-    exit 1
-fi
-
-# Get the absolute path of the script directory
-DIR=\$(dirname "\$(realpath "./build.sh")")
-
-# Compile the dynamic library using absolute paths
-gcc -fPIC -shared "\$DIR/../lib/$library_name.c" -o "\$DIR/../lib/$library_name.so"
-if [ \$? -ne 0 ]; then
-    echo "\${RED}Failed to compile the dynamic library.\${NC}"
-    exit 1
-fi
-
-# Compile the main program using absolute paths
-gcc "\$DIR/../src/main.c" -ldl -o "\$DIR/$output_binary"
-if [ \$? -ne 0 ]; then
-    echo "\${RED}Failed to compile the main program.\${NC}"
-    exit 1
-fi
-
-echo "\${GREEN}Library and program recompiled successfully.\${NC}"
-EOL
-
-chmod +x "$project_name/lib/recompile.sh"
-
-# Create README.md with project structure and instructions
+# Update README with project scope and usage instructions
 cat <<EOL > "$project_name/README.md"
 # $project_name
 
-## Project Structure
-Your easC project is ready with the following structure:
+## Overview
+This is a basic C framework built with dynamic library support using \`dlopen\`, \`dlsym\`, and \`dlclose\`. 
+It supports hot-reloading, allowing library code to be updated without restarting the program.
 
-\`\`\`
-$project_name/
-├── .config/easC/
-│    └── config.json
-├── src/
-│   └── main.c
-├── lib/
-│   ├── $library_name.c
-│   ├── $library_name.h
-│   └── recompile.sh
-├── build/
-├── init.sh
-└── README.md
+## Features
+- Dynamic function loading and reloading.
+- Easy recompile script for library changes.
+- Optional .clang-format for code styling.
+- Makefile for streamlined builds.
+
+## Usage
+To compile the project:
+\`\`\`bash
+./init.sh
 \`\`\`
 
-## Instructions
-1. Navigate to your project folder: \`cd $project_name\`
-2. Run \`./init.sh\` to initially compile the library and binary.
-3. Run \`cd build/; export LD_LIBRARY_PATH=.:\$LD_LIBRARY_PATH\`
-4. Run your program: \`./$output_binary\`
-5. While the binary `$output_binary` is still running, press 'r' in the running program to reload the library and apply changes.
+To run the project:
+\`\`\`bash
+cd build && ./\$output_binary
+\`\`\`
 
-Hope you had an easC time!
+To reload the library at runtime, press 'r'. Press 'q' to quit.
+
+## Requirements
+- gcc
+- make (optional)
+- clang-format (optional)
+
 EOL
 
-# Display project structure
-echo -e "${GREEN}Your easC project is ready with the following structure:${NC}"
-echo -e "${YELLOW}$project_name${NC}/"
-echo "├── .config/easC/"
-echo "│    └── config.json"
-echo "├── src/"
-echo "│   └── main.c"
-echo "├── lib/"
-echo "│   ├── $library_name.c"
-echo "│   ├── $library_name.h"
-echo "│   └── recompile.sh"
-echo "├── build/"
-echo "├── init.sh"
-echo "└── README.md"
-
-# Instructions
-echo -e "${GREEN}To get started:${NC}"
-echo -e "1. Navigate to your project folder: ${YELLOW}cd $project_name${NC}"
-echo -e "2. Run ${YELLOW}./init.sh${NC} to initially compile the library and binary."
-echo -e "3. Run: cd build/; export LD_LIBRARY_PATH=.:\$LD_LIBRARY_PATH"
-echo -e "4. Run your program: ${YELLOW}./$output_binary${NC}"
-echo -e "5. While the binary $output_binary is running, press 'r' in the running program to reload the library and apply changes."
-
-echo -e "${BLUE}Hope you had an easC time!${NC}"
+# Final message
+echo -e "${GREEN}Project $project_name has been initialized successfully!${NC}"
