@@ -267,7 +267,7 @@ int main() {
 
     /* Event loop: Continue until 'q' is pressed */
     while (s != 'q') {
-        printf("Press 'r' to reload or 'q' to quit: ");
+        printf("Welcome to easC!:\nKEYBINDS:\n\n1. 'r' -- Hot Reload Project\n2. 'c' -- Clear Screen\n3. 'q' -- Quit easC workflow\n");
         
         /* Wait for user input */
         scanf(" %c", &s);  // Add space to ignore any previous newline
@@ -279,8 +279,12 @@ int main() {
         }
 
         /* Call the test_update function (if 'q' is not pressed) */
-        if (s != 'q') {
+        if (s != 'q' && s != 'c') {
             easC_update();
+        }
+        if (s == 'c') {
+          system("clear");
+          printf("[EASC] Clear screen successfully!\n");
         }
     }
 

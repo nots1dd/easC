@@ -26,5 +26,5 @@ void easC_print() {
 
 /* Updates the logic and prints a message */
 void easC_update() {
-    printf("Hemlo world?\n??\n%x%x%x\n");
+    printf("Testing for something\n......\n");
 }
