@@ -69,9 +69,15 @@ $project_name/
 ├── lib/
 │   ├── $library_name.c
 │   ├── $library_name.h
+│   ├── $library_name.so
 │   └── recompile.sh
 ├── build/
+│   ├── $output_binary
+│   └── $output_binary-static
 ├── init.sh
+├── staticompile.sh
+├── .clang-format   [OPTIONAL]
+├── Makefile        [OPTIONAL]
 └── README.md
 ```
 
@@ -100,9 +106,10 @@ The README provides detailed instructions for the user to:
 
 Below code snipper would be the ideal streamlined flow of using easC for your project: 
 
-```sh 
+```sh
+# To build a project DYNAMICALLY (MACRO: EASC_DYNC) 
 cd $project_name/
-./init.sh                                 # To initialize easC
+./init.sh                                 # To initialize easC (output_binary: $output_binary)
 
 cd build/ 
 export LD_LIBRARY_PATH=.:$LD_LIBRARY_PATH # Adding our shared object library to LD_LIBRARY_PATH for GNU linker to link to binary
@@ -113,6 +120,15 @@ export LD_LIBRARY_PATH=.:$LD_LIBRARY_PATH # Adding our shared object library to 
 
 # In the currently running $output_binary: 
 # Type 'r' while in the event loop!
+
+############ STATIC BUILD #############
+
+# To build a project STATICALLY
+cd $project_name/
+./staticompile.sh                         # To initialize easC (output_binary: $output_binary-static)
+
+cd build/
+./$output_binary-static
 ```
 
 > [!IMPORTANT]
