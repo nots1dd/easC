@@ -20,22 +20,28 @@
 #define LIBEASC "../lib/libtest.so"
 #define RELOAD_SCRIPT "../lib/recompile.sh"  // Script to recompile the library and program
 
-#define EASC_SYM_PRINT "easC_print"
-#define EASC_SYM_INIT  "easC_init"
-#define EASC_SYM_UPD   "easC_update"
+#define HELPER_STRING "Welcome to easC!:\nKEYBINDS:\n\n1. 'r' -- Hot Reload Project\n2. 'c' -- Clear Screen\n3. 'q' -- Quit easC workflow\n\n> "
 
 /****************************************
  * Global Variables:
  * - lib_name: The name of the shared library file.
  * - libplug: Handle for the dynamically loaded library.
- * - Function pointers: test_print, test_init, test_update (retrieved using dlsym).
+ * - Function pointers: All called and defined using X MACROS.
  ****************************************/
 const char *lib_name = LIBEASC;
 void *libplug = NULL;
 
-easC_print_t easC_print = NULL;
-easC_init_t easC_init = NULL;
-easC_update_t easC_update = NULL;
+/***********************************
+ *
+ * @X_MACROS DEF 
+ *
+ * Defining all the typdefs to NULL
+ *
+ ***********************************/
+
+#define EASC(name) name##_t name = NULL;
+EASC_FUNC_LIST
+#undef EASC
 
 /****************************************
  * reload_func:
@@ -56,27 +62,10 @@ bool reload_func() {
         fprintf(stderr, "Couldn't load %s: %s\n", lib_name, dlerror());
         return false;
     }
-
-    /* Retrieve the test_print function symbol */
-    easC_print = dlsym(libplug, EASC_SYM_PRINT);
-    if (easC_print == NULL) {
-        fprintf(stderr, "Couldn't find symbol test_print: %s\n", dlerror());
-        return false;
-    }
-
-    /* Retrieve the test_init function symbol */
-    easC_init = dlsym(libplug, EASC_SYM_INIT);
-    if (easC_init == NULL) {
-        fprintf(stderr, "Couldn't find symbol test_init: %s\n", dlerror());
-        return false;
-    }
-
-    /* Retrieve the test_update function symbol */
-    easC_update = dlsym(libplug, EASC_SYM_UPD);
-    if (easC_update == NULL) {
-        fprintf(stderr, "Couldn't find symbol test_update: %s\n", dlerror());
-        return false;
-    }
+    
+    #define EASC(name)         name = dlsym(libplug, #name);         if (name == NULL) {           fprintf(stderr, "Couldn't find %s symbol: %s\n",             #name, dlerror());           return false;         }
+    EASC_FUNC_LIST 
+    #undef EASC 
 
     /* Successfully loaded the library and retrieved all symbols */
     return true;
@@ -102,8 +91,8 @@ int main() {
 
     /* Event loop: Continue until 'q' is pressed */
     while (s != 'q') {
-        printf("Welcome to easC!:\nKEYBINDS:\n\n1. 'r' -- Hot Reload Project\n2. 'c' -- Clear Screen\n3. 'q' -- Quit easC workflow\n");
-        
+        printf("%s", HELPER_STRING);   
+
         /* Wait for user input */
         scanf(" %c", &s);  // Add space to ignore any previous newline
 
@@ -113,13 +102,15 @@ int main() {
             if (!reload_func()) return 1;  // Reload the library and symbols
         }
 
-        /* Call the test_update function (if 'q' is not pressed) */
+        /* Call the update function (if 'q' is not pressed) */
         if (s != 'q' && s != 'c') {
+            printf("--------------------------------\n\n");
             easC_update();
+            printf("\n--------------------------------\n");
         }
+        /* Simple clear the screen */
         if (s == 'c') {
           system("clear");
-          printf("[EASC] Clear screen successfully!\n");
         }
     }
 
