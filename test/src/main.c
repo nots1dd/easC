@@ -39,7 +39,11 @@ void *libplug = NULL;
  *
  ***********************************/
 
-#define EASC(name) name##_t name = NULL;
+#ifdef EASC_DYNC
+#define EASC(name) name##_t *name = NULL;
+#else 
+#define EASC(name) name##_t name;
+#endif
 EASC_FUNC_LIST
 #undef EASC
 
@@ -50,13 +54,14 @@ EASC_FUNC_LIST
  * and  to locate function symbols. If any errors occur, the function
  * prints an error message and returns false.
  ****************************************/
+#ifdef EASC_DYNC
 bool reload_func() {
     /* Close the previously opened library if it exists */
     if (libplug != NULL) {
         dlclose(libplug);
     }
 
-    /* Load the shared library (libtest.so) */
+    /* Load the shared library (libeasc.so) */
     libplug = dlopen(lib_name, RTLD_NOW);
     if (libplug == NULL) {
         fprintf(stderr, "Couldn't load %s: %s\n", lib_name, dlerror());
@@ -70,6 +75,9 @@ bool reload_func() {
     /* Successfully loaded the library and retrieved all symbols */
     return true;
 }
+#else 
+#define reload_func() true
+#endif
 
 /****************************************
  * main:
@@ -115,6 +123,10 @@ int main() {
     }
 
     /* Close the library before exiting */
+    #ifdef EASC_DYNC
     dlclose(libplug);
+    #else 
+    printf("Exiting statically...\n");
+    #endif
     return 0;
 }

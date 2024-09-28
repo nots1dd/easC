@@ -19,6 +19,7 @@ test/
 │   └── recompile.sh
 ├── build/
 ├── init.sh
+├── staticompile.sh
 ├── Makefile      [OPTIONAL]
 ├── .clang-format [OPTIONAL]
 └── README.md
@@ -31,9 +32,14 @@ test/
 - Makefile for streamlined builds.
 
 ## Usage
-To compile the project:
+To compile the project [DYNAMIC BUILD]:
 ```bash
 ./init.sh
+```
+
+To compile the project [STATIC BUILD]:
+```bash 
+./staticompile.sh 
 ```
 
 To run the project:

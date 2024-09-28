@@ -14,9 +14,9 @@
  ****************************************/
 
 /* Typedef for dynamic function pointers */
-typedef void (*easC_print_t)(void);
-typedef void (*easC_init_t)(void);
-typedef void (*easC_update_t)(void);
+typedef void (easC_print_t)(void);
+typedef void (easC_init_t)(void);
+typedef void (easC_update_t)(void);
 
 /**************************************
  *

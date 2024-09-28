@@ -26,5 +26,5 @@ void easC_print() {
 
 /* Updates the logic and prints a message */
 void easC_update() {
-    printf("Updated function call. Hot reloading works!\nHello world??\nShould work now\n");
+  printf("Updated function call. Hot reloading works!\nHello world??\nTesting\n:)\nNow?? please\n");
 }

@@ -7,6 +7,9 @@ GREEN='\033[1;32m'
 BLUE='\033[1;34m'
 NC='\033[0m' # No Color
 
+# Dynamic Build Flag
+DYNC_FLAG="EASC_DYNC"
+
 # Function to validate input
 validate_input() {
     if [[ ! "$1" =~ ^[a-zA-Z0-9_]+$ ]]; then
@@ -124,9 +127,9 @@ cat <<EOL > "$project_name/lib/$library_name.h"
  ****************************************/
 
 /* Typedef for dynamic function pointers */
-typedef void (*easC_print_t)(void);
-typedef void (*easC_init_t)(void);
-typedef void (*easC_update_t)(void);
+typedef void (easC_print_t)(void);
+typedef void (easC_init_t)(void);
+typedef void (easC_update_t)(void);
 
 /**************************************
  *
@@ -226,7 +229,11 @@ void *libplug = NULL;
  *
  ***********************************/
 
-#define EASC(name) name##_t name = NULL;
+#ifdef EASC_DYNC
+#define EASC(name) name##_t *name = NULL;
+#else 
+#define EASC(name) name##_t name;
+#endif
 EASC_FUNC_LIST
 #undef EASC
 
@@ -237,13 +244,14 @@ EASC_FUNC_LIST
  * and `dlsym` to locate function symbols. If any errors occur, the function
  * prints an error message and returns false.
  ****************************************/
+#ifdef EASC_DYNC
 bool reload_func() {
     /* Close the previously opened library if it exists */
     if (libplug != NULL) {
         dlclose(libplug);
     }
 
-    /* Load the shared library ($library_name.so) */
+    /* Load the shared library (libeasc.so) */
     libplug = dlopen(lib_name, RTLD_NOW);
     if (libplug == NULL) {
         fprintf(stderr, "Couldn't load %s: %s\n", lib_name, dlerror());
@@ -263,6 +271,9 @@ bool reload_func() {
     /* Successfully loaded the library and retrieved all symbols */
     return true;
 }
+#else 
+#define reload_func() true
+#endif
 
 /****************************************
  * main:
@@ -308,10 +319,46 @@ int main() {
     }
 
     /* Close the library before exiting */
+    #ifdef EASC_DYNC
     dlclose(libplug);
+    #else 
+    printf("Exiting statically...\n");
+    #endif
     return 0;
 }
 EOL
+
+# Creating static compile build file
+cat <<EOL > "$project_name/staticompile.sh"
+#!/bin/bash
+
+YELLOW='\033[1;33m'
+RED='\033[1;31m'
+GREEN='\033[1;32m'
+BLUE='\033[1;34m'
+NC='\033[0m' # No Color
+
+CONFIG_FILE="$config_file"
+
+if [ ! -f "\$CONFIG_FILE" ]; then
+    echo "\${RED}Config file not found.\${NC}"
+    exit 1
+fi
+
+output_binary=\$(jq -r '.output_binary' "\$CONFIG_FILE")-static
+library_name=\$(jq -r '.library_name' "\$CONFIG_FILE")
+
+# Compile library and main program
+gcc -fPIC -shared lib/\$library_name.c -o lib/\$library_name.so
+gcc lib/\$library_name.c src/main.c -ldl -o build/\$output_binary
+if [ \$? -eq 0 ]; then
+    echo -e "\${GREEN}Project compiled successfully.\${NC}"
+else
+    echo -e "\${RED}Compilation failed.\${NC}"
+fi
+EOL
+
+chmod +x "$project_name/staticompile.sh"
 
 # Create recompile.sh script
 cat <<EOL > "$project_name/lib/recompile.sh"
@@ -381,7 +428,7 @@ library_name=\$(jq -r '.library_name' "\$CONFIG_FILE")
 
 # Compile library and main program
 gcc -fPIC -shared lib/\$library_name.c -o lib/\$library_name.so
-gcc src/main.c -ldl -o build/\$output_binary
+gcc src/main.c -ldl -o build/\$output_binary -D${DYNC_FLAG}
 if [ \$? -eq 0 ]; then
     echo -e "${GREEN}Project compiled successfully.${NC}"
 else
@@ -413,6 +460,7 @@ $project_name/
 │   └── recompile.sh
 ├── build/
 ├── init.sh
+├── staticompile.sh
 ├── Makefile      [OPTIONAL]
 ├── .clang-format [OPTIONAL]
 └── README.md
@@ -425,9 +473,14 @@ $project_name/
 - Makefile for streamlined builds.
 
 ## Usage
-To compile the project:
+To compile the project [DYNAMIC BUILD]:
 \`\`\`bash
 ./init.sh
+\`\`\`
+
+To compile the project [STATIC BUILD]:
+\`\`\`bash 
+./staticompile.sh 
 \`\`\`
 
 To run the project:

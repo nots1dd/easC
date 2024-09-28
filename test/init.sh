@@ -12,7 +12,7 @@ library_name=$(jq -r '.library_name' "$CONFIG_FILE")
 
 # Compile library and main program
 gcc -fPIC -shared lib/$library_name.c -o lib/$library_name.so
-gcc src/main.c -ldl -o build/$output_binary
+gcc src/main.c -ldl -o build/$output_binary -DEASC_DYNC
 if [ $? -eq 0 ]; then
     echo -e "\033[1;32mProject compiled successfully.\033[0m"
 else
