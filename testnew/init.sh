@@ -1,9 +1,15 @@
 #!/bin/bash
 
-CONFIG_FILE="/home/s1dd/misc/buildtest/test/.config/easC/config.json"
+YELLOW='\033[1;33m'
+RED='\033[1;31m'
+GREEN='\033[1;32m'
+BLUE='\033[1;34m'
+NC='\033[0m' # No Color
+
+CONFIG_FILE="/home/s1dd/misc/buildtest/testnew/.config/easC/config.json"
 
 if [ ! -f "$CONFIG_FILE" ]; then
-    echo "\033[1;31mConfig file not found.\033[0m"
+    echo "${RED}Config file not found.${NC}"
     exit 1
 fi
 
@@ -14,7 +20,7 @@ library_name=$(jq -r '.library_name' "$CONFIG_FILE")
 gcc -fPIC -shared lib/$library_name.c -o lib/$library_name.so
 gcc src/main.c -ldl -o build/$output_binary -DEASC_DYNC
 if [ $? -eq 0 ]; then
-    echo -e "\033[1;32mProject compiled successfully.\033[0m"
+    echo -e "${GREEN}Project compiled successfully.${NC}"
 else
-    echo -e "\033[1;31mCompilation failed.\033[0m"
+    echo -e "${RED}Compilation failed.${NC}"
 fi

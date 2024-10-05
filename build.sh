@@ -115,6 +115,7 @@ cat <<EOL > "$project_name/lib/$library_name.h"
 #define ${library_name^^}_H
 
 #include <stdio.h>
+#include <stdbool.h>
 /**********************
  * INSERT HEADERS HERE
  **********************/
@@ -126,9 +127,42 @@ cat <<EOL > "$project_name/lib/$library_name.h"
  * dynamic library functions used by the main program.
  ****************************************/
 
+ /***************************************
+  * 
+  * @STATE MANAGEMENT
+  * 
+  * Not everything is meant to be re-run
+  * when reloading. Some things must be 
+  * accounted for before and after reload.
+  *
+  * Hence, to ensure that a few aspects of
+  * your project gracefully handle state change, 
+  * we have a typedef struct easC_State
+  * 
+  * \$PRE RELOAD: 
+  * Before reloading we return the previous state 
+  * of the struct to a void pointer.
+  * 
+  * \$POST RELOAD:
+  * After running reload_func in main.c, 
+  * we give the easC_post_reload_t typdef 
+  * the previous state's struct pointer to 
+  * preserve the information that YOU need 
+  * to avoid unexpected runtime errors.
+  * 
+ ****************************************/
+
+typedef struct 
+{
+
+} easC_State;
+
 /* Typedef for dynamic function pointers */
 typedef void (easC_print_t)(void);
 typedef void (easC_init_t)(void);
+typedef void* (easC_pre_reload_t)(void);
+typedef void (easC_post_reload_t)(void*);
+typedef bool (easC_event_loop_condn_true_t)(char s);
 typedef void (easC_update_t)(void);
 
 /**************************************
@@ -148,6 +182,9 @@ typedef void (easC_update_t)(void);
 #define EASC_FUNC_LIST \
   EASC(easC_init) \
   EASC(easC_print) \
+  EASC(easC_pre_reload) \
+  EASC(easC_post_reload) \
+  EASC(easC_event_loop_condn_true) \
   EASC(easC_update) \
 
 #endif
@@ -170,6 +207,12 @@ cat <<EOL > "$project_name/lib/$library_name.c"
  * - easC_update: Updates logic and demonstrates hot reloading.
  ****************************************/
 
+/********************
+ * @State management decl
+ ********************/
+
+easC_State *state = NULL;
+
 /* Initializes the library */
 void easC_init() {
     printf("Library initialized successfully.\n");
@@ -178,6 +221,29 @@ void easC_init() {
 /* Prints a simple message for testing */
 void easC_print() {
     printf("This is the test_print function from the dynamically loaded library.\n");
+}
+
+/* Event loop condition for main.c */ 
+bool easC_event_loop_condn_true(char s)
+{
+  if (s != 'q')
+  {
+    return true;
+  }
+
+  return false;
+}
+
+/* Before invoking reload_func, store the state */
+easC_State *easC_pre_reload(void)
+{ 
+  return state;
+}
+
+/* After invoking reload_func, give the previous state to the new state */
+void easC_post_reload(easC_State *prev)
+{
+  state = prev;
 }
 
 /* Updates the logic and prints a message */
@@ -192,6 +258,12 @@ cat <<EOL > "$project_name/src/main.c"
 #include <dlfcn.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <signal.h>
+#include <string.h>
+#include <setjmp.h>
+#include <execinfo.h>
+#include <limits.h>
+#include <unistd.h>
 #include "../lib/$library_name.h"
 
 /****************************************
@@ -207,10 +279,50 @@ cat <<EOL > "$project_name/src/main.c"
  *   the library or execute the functions dynamically loaded from the library.
  ****************************************/
 
+ extern char **environ;
+
+/* ANSI COLOR ESCAPE VALUES */
+#define COLOR_RESET      "\033[0m"
+#define COLOR_RED        "\033[31m"
+#define COLOR_YELLOW     "\033[33m"
+#define COLOR_CYAN       "\033[36m"
+#define COLOR_BOLD       "\033[1m"
+#define COLOR_GREEN      "\033[32m"
+
+#define BOX_WIDTH 50
+
+// Utility function to print a box
+void print_box(const char *message, const char* color) {
+    int len = strlen(message);
+    int padding = (BOX_WIDTH - len) / 2;
+
+    // Print top border
+    printf("%s+", COLOR_GREEN);
+    for (int i = 0; i < BOX_WIDTH; i++) printf("-");
+    printf("+%s\n", COLOR_RESET);
+
+    // Print message with padding
+    printf("%s|%s", COLOR_GREEN, COLOR_RESET);
+    for (int i = 0; i < padding; i++) printf(" ");
+    printf("%s%s%s", message, color, COLOR_RESET);
+    for (int i = 0; i < BOX_WIDTH - len - padding; i++) printf(" ");
+    printf("%s|\n", COLOR_GREEN);
+
+    // Print bottom border
+    printf("%s+", COLOR_GREEN);
+    for (int i = 0; i < BOX_WIDTH; i++) printf("-");
+    printf("+%s\n", COLOR_RESET);
+}
+
 #define LIBEASC "../lib/$library_name.so"
 #define RELOAD_SCRIPT "../lib/recompile.sh"  // Script to recompile the library and program
 
 #define HELPER_STRING "Welcome to easC!:\nKEYBINDS:\n\n1. 'r' -- Hot Reload Project\n2. 'c' -- Clear Screen\n3. 'q' -- Quit easC workflow\n\n> "
+
+/* RUNTIME ERROR MESSAGES */ 
+#define SEG_FAULT_MESSAGE  "[easC_SEGV] easC has detected segfault in easC_update! Recovering....\n"
+#define ABRT_FAULT_MESSAGE "[easC_ABRT] easC has detected abort signal due to unknown reasons!! Recovering....\n"
+#define FPE_FAULT_MESSAGE  "[easC_FPE] easC has detected a floating point exception!! Recovering...\n"
 
 /****************************************
  * Global Variables:
@@ -220,6 +332,122 @@ cat <<EOL > "$project_name/src/main.c"
  ****************************************/
 const char *lib_name = LIBEASC;
 void *libplug = NULL;
+
+jmp_buf recovery_point;
+
+/* Signal handler function for segfault and other errors */
+void easC_SIG_HANDLER(int sig, siginfo_t *si, void *unused) {
+    // Print signal-specific message with color
+    if (sig == SIGSEGV) {
+        printf("\n%s%s%s\n", COLOR_RED, COLOR_BOLD, SEG_FAULT_MESSAGE);
+        printf("%sSegmentation fault occurred! Details:%s\n", COLOR_RED, COLOR_RESET);
+        printf("%s- Faulting address: %p\n", COLOR_YELLOW, si->si_addr);
+        printf("- Attempted to read or write to an invalid memory address.\n"
+               "- Dereferencing a NULL or uninitialized pointer.\n"
+               "- Buffer overflow or accessing array out of bounds.\n"
+               "- Possible location: ");
+        
+        // Use addr2line to get file and line information (if available)
+        if (si->si_addr) {
+            printf("- Possible location: ");
+            // Use addr2line to get file and line information (if available)
+            char cmd[256];
+            snprintf(cmd, sizeof(cmd), "addr2line -e /proc/%d/exe %p", getpid(), si->si_addr);
+            FILE *fp = popen(cmd, "r");
+            if (fp) {
+                char output[256];
+                if (fgets(output, sizeof(output), fp) != NULL) {
+                    printf("%s", output);
+                } else {
+                    printf("Unable to determine location\n");
+                }
+                pclose(fp);
+            } else {
+                printf("Unable to run addr2line\n");
+            }
+        } else {
+            printf("- Unable to determine location (NULL address)\n");
+        }
+        printf("%s\n", COLOR_RESET);
+    } else if (sig == SIGABRT) {
+        printf("\n%s%s%s\n", COLOR_RED, COLOR_BOLD, ABRT_FAULT_MESSAGE);
+        printf("%sAbort signal received! This could be due to:%s\n", COLOR_YELLOW, COLOR_RESET);
+        printf("%s- An assertion failure or explicit call to abort().\n"
+               "- Memory corruption detected by the C library.\n"
+               "- Unhandled exception in C++ code.%s\n", COLOR_YELLOW, COLOR_RESET);
+    } else if (sig == SIGFPE) {
+        printf("\n%s%s%s\n", COLOR_RED, COLOR_BOLD, FPE_FAULT_MESSAGE);
+        printf("%sFloating-point exception occurred! Details:%s\n", COLOR_YELLOW, COLOR_RESET);
+        printf("%s- Type: ", COLOR_YELLOW);
+        switch (si->si_code) {
+            case FPE_INTDIV: printf("Integer divide by zero\n"); break;
+            case FPE_INTOVF: printf("Integer overflow\n"); break;
+            case FPE_FLTDIV: printf("Floating-point divide by zero\n"); break;
+            case FPE_FLTOVF: printf("Floating-point overflow\n"); break;
+            case FPE_FLTUND: printf("Floating-point underflow\n"); break;
+            case FPE_FLTRES: printf("Floating-point inexact result\n"); break;
+            case FPE_FLTINV: printf("Invalid floating-point operation\n"); break;
+            case FPE_FLTSUB: printf("Subscript out of range\n"); break;
+            default: printf("Unknown floating-point exception\n");
+        }
+        printf("%s\n", COLOR_RESET);
+    } else {
+        printf("%sUnknown signal received: %d. Recovering...\n", COLOR_YELLOW, sig);
+    }
+
+    // Print additional process information
+    printf("%sProcess Information:%s\n", COLOR_YELLOW, COLOR_RESET);
+    
+    // Get program name (portable way)
+    char program_name[PATH_MAX];
+    ssize_t len = readlink("/proc/self/exe", program_name, sizeof(program_name) - 1);
+    if (len != -1) {
+        program_name[len] = '\0';
+        printf("  Program Name: %s\n", program_name);
+    } else {
+        printf("  Program Name: Unknown\n");
+    }
+    
+    printf("  Process ID: %d\n", getpid());
+    printf("  Parent Process ID: %d\n", getppid());
+    printf("  Signal: %d\n", sig);
+    printf("  Signal origin: %s\n", (si->si_pid == 0) ? "Kernel" : "User process");
+    if (si->si_pid != 0) {
+        printf("  Sending process ID: %d\n", si->si_pid);
+    }
+
+    // Print current working directory
+    char cwd[PATH_MAX];
+    if (getcwd(cwd, sizeof(cwd)) != NULL) {
+        printf("  Current working directory: %s\n", cwd);
+    }
+
+    // Print environment variables
+    printf("  Relevant environment variables:\n");
+    char **env = environ;
+    while (*env) {
+        if (strncmp(*env, "PATH=", 5) == 0 || strncmp(*env, "LD_LIBRARY_PATH=", 16) == 0) {
+            printf("    %s\n", *env);
+        }
+        env++;
+    }
+
+    // Print a stack trace in a box
+    void *array[20];
+    size_t size;
+    char **strings;
+    size = backtrace(array, 20);
+    strings = backtrace_symbols(array, size);
+
+    print_box("Stack Trace:", COLOR_CYAN);
+    for (size_t i = 0; i < size; i++) {
+        printf("%s\n", strings[i]);
+    }
+    free(strings);
+
+    // Jump to the recovery point set earlier
+    longjmp(recovery_point, sig);
+}
 
 /***********************************
  *
@@ -275,6 +503,63 @@ bool reload_func() {
 #define reload_func() true
 #endif
 
+void safe_call(easC_update_t func, const char* func_name) {
+    if (func != NULL) {
+        int sig = setjmp(recovery_point);
+        if (sig == 0) {
+            func();
+        } else {
+            printf("%s%s[ERROR] %s caused an error (signal %d). Rebinding event loop...\n%s",
+                   COLOR_RED, COLOR_BOLD, func_name, sig, COLOR_RESET);
+        }
+    } else {
+        printf("%s%s[WARNING] %s is NULL. Skipping...\n%s",
+               COLOR_YELLOW, COLOR_BOLD, func_name, COLOR_RESET);
+    }
+}
+
+void easC_Event_Loop() {
+    char s = 0;
+    void* state = NULL;
+
+    while (easC_event_loop_condn_true != NULL && easC_event_loop_condn_true(s)) { 
+
+        printf("%s", HELPER_STRING);
+        scanf(" %c", &s);
+
+        if (s == 'r') {
+            if (easC_pre_reload != NULL) {
+                state = easC_pre_reload();
+            }
+            if (!reload_func()) {
+                printf("%s%s[WARNING] Failed to reload library. Continuing with previous version.\n%s",
+                       COLOR_YELLOW, COLOR_BOLD, COLOR_RESET);
+            } else {
+                if (easC_post_reload != NULL) {
+                    int sig = setjmp(recovery_point);
+                    if (sig == 0) {
+                        easC_post_reload(state);
+                    } else {
+                        printf("%s%s[ERROR] easC_post_reload caused an error (signal %d). Rebinding event loop...\n%s",
+                               COLOR_RED, COLOR_BOLD, sig, COLOR_RESET);
+                    }
+                }
+            }
+        } else if (s == 'q') {
+            printf("\n%sExiting easC with code 0%s\n", COLOR_GREEN, COLOR_RESET);
+            return;
+        } else if (s == 'c') {
+            system("clear");
+        }
+       
+        if (easC_update != NULL && s == 'r') {      
+          printf("----------------------------- EASC_UPDATE ----------------------------------\n\n");
+          safe_call(easC_update, "easC_update");
+          printf("\n---------------------------- EASC_UPDATE ----------------------------------\n");
+        }
+  }
+}
+
 /****************************************
  * main:
  * The main function runs an event loop that waits for user input.
@@ -283,40 +568,26 @@ bool reload_func() {
  * Press 'q' to quit the program.
  ****************************************/
 int main() {
+    
+    struct sigaction sa;
+    sa.sa_sigaction = easC_SIG_HANDLER;
+    sa.sa_flags = SA_SIGINFO;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGSEGV, &sa, NULL);
+    sigaction(SIGABRT, &sa, NULL);
+    sigaction(SIGFPE, &sa, NULL);
+    
     /* Load the library and retrieve the function symbols initially */
     if (!reload_func()) {
-        return 1;
+        printf("%s%sError: Failed to load initial library. You can retry with 'r'.\nExiting with code 5.\n%s", COLOR_RED, COLOR_BOLD, COLOR_RESET);
+        return 5;
     }
 
     /* Initialize the library (call test_init) */
     easC_init();
 
-    char s;  // Variable to store user input
-
     /* Event loop: Continue until 'q' is pressed */
-    while (s != 'q') {
-        printf("%s", HELPER_STRING);   
-
-        /* Wait for user input */
-        scanf(" %c", &s);  // Add space to ignore any previous newline
-
-        /* If 'r' is pressed, reload the library */
-        if (s == 'r') {
-            system(RELOAD_SCRIPT);  // Execute the reload script
-            if (!reload_func()) return 1;  // Reload the library and symbols
-        }
-
-        /* Call the update function (if 'q' is not pressed) */
-        if (s != 'q' && s != 'c') {
-            printf("--------------------------------\n\n");
-            easC_update();
-            printf("\n--------------------------------\n");
-        }
-        /* Simple clear the screen */
-        if (s == 'c') {
-          system("clear");
-        }
-    }
+    easC_Event_Loop();
 
     /* Close the library before exiting */
     #ifdef EASC_DYNC
@@ -365,11 +636,17 @@ cat <<EOL > "$project_name/lib/recompile.sh"
 #!/bin/bash
 # Recompile the dynamic library
 
+YELLOW='\033[1;33m'
+RED='\033[1;31m'
+GREEN='\033[1;32m'
+BLUE='\033[1;34m'
+NC='\033[0m' # No Color
+
 gcc -fPIC -shared ../lib/$library_name.c -o ../lib/$library_name.so
 if [ \$? -eq 0 ]; then
-    echo -e "${GREEN}Library recompiled successfully.${NC}"
+    echo -e "\${GREEN}Library recompiled successfully.\${NC}"
 else
-    echo -e "${RED}Error recompiling the library.${NC}"
+    echo -e "\${RED}Error recompiling the library.\${NC}"
     exit 1
 fi
 EOL
@@ -416,10 +693,16 @@ fi
 cat <<EOL > "$project_name/init.sh"
 #!/bin/bash
 
+YELLOW='\033[1;33m'
+RED='\033[1;31m'
+GREEN='\033[1;32m'
+BLUE='\033[1;34m'
+NC='\033[0m' # No Color
+
 CONFIG_FILE="$config_file"
 
 if [ ! -f "\$CONFIG_FILE" ]; then
-    echo "${RED}Config file not found.${NC}"
+    echo "\${RED}Config file not found.\${NC}"
     exit 1
 fi
 
@@ -430,9 +713,9 @@ library_name=\$(jq -r '.library_name' "\$CONFIG_FILE")
 gcc -fPIC -shared lib/\$library_name.c -o lib/\$library_name.so
 gcc src/main.c -ldl -o build/\$output_binary -D${DYNC_FLAG}
 if [ \$? -eq 0 ]; then
-    echo -e "${GREEN}Project compiled successfully.${NC}"
+    echo -e "\${GREEN}Project compiled successfully.\${NC}"
 else
-    echo -e "${RED}Compilation failed.${NC}"
+    echo -e "\${RED}Compilation failed.\${NC}"
 fi
 EOL
 chmod +x "$project_name/init.sh"
@@ -509,7 +792,8 @@ echo "│   ├── $library_name.h"
 echo "│   └── recompile.sh"
 echo "├── build/"
 echo "├── init.sh"
-echo "├── Makefile (optional)"
+echo "├── staticompile.sh"
+echo "├── Makefile      (optional)"
 echo "├── .clang-format (optional)"
 echo "└── README.md"
 
@@ -521,4 +805,4 @@ echo -e "4. Run your program: ${YELLOW}./$output_binary${NC}"
 echo -e "5. While the binary $output_binary is running, press 'r' in the running program to reload the library and apply changes."
 
 # Final message
-echo -e "${GREEN}Project $project_name has been initialized successfully!${NC}"
+echo -e "${GREEN} easC project $project_name has been initialized successfully!${NC}"

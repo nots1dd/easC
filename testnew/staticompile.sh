@@ -6,7 +6,7 @@ GREEN='\033[1;32m'
 BLUE='\033[1;34m'
 NC='\033[0m' # No Color
 
-CONFIG_FILE="/home/s1dd/misc/buildtest/test/.config/easC/config.json"
+CONFIG_FILE="/home/s1dd/misc/buildtest/testnew/.config/easC/config.json"
 
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "${RED}Config file not found.${NC}"
